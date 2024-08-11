@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>WebSocket Test</h1>
+    <input type="text" id="usernameInput" placeholder="Type a username">
+    <input type="text" id="roomCodeInput" placeholder="Type a room code">
+    <button onclick="joinRoom(document.getElementById('roomCodeInput').value)">Join Room</button>
+    <button onclick="createRoom()">Create Room</button>
+    <pre id="messages"></pre>
+    <script>
+        const ws = new WebSocket('ws://localhost:8080/ws');
+
+        ws.onopen = () => {
+            console.log('WebSocket connection established');
+        };
+
+        ws.onmessage = (event) => {
+            const messages = document.getElementById('messages');
+            messages.textContent += `Received: ${event.data}\n`;
+            debugger;
+
+            const response = JSON.parse(event.data)
+
+            switch(response.type){
+                case "game-created": joinRoom(response.content.room_code)
+            }
+        };
+
+        function createRoom() {
+            const roomCode = document.getElementById('roomCodeInput');
+            const username = document.getElementById('usenameInput');
+
+            let message = { type: 'create-game', content: "" };
+            console.log(message);
+            ws.send(JSON.stringify(message));
+
+            // message = { type: 'add-player', content: {room_code: roomCode, username: username} };
+            // ws.send(JSON.stringify(message));
+        }
+
+        function joinRoom(roomCode) {
+            const username = document.getElementById('usernameInput').value;
+
+            const message = { type: 'add-player', content: {room_code: roomCode, username: username} };
+            console.log(message);
+                ws.send(JSON.stringify(message));
+        }
+    </script>
+</body>
+</html>
