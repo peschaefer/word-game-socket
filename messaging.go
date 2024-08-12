@@ -34,8 +34,8 @@ type JoinGameResponse struct {
 }
 
 // Functions
-func notifyPlayers(gameCode string, notificationType string) {
-	game, exists := games[gameCode]
+func notifyPlayers(gameCode string, notificationType string, notificationContent interface{}) {
+	game, exists := rooms[gameCode]
 	if !exists {
 		return
 	}
@@ -43,17 +43,17 @@ func notifyPlayers(gameCode string, notificationType string) {
 	var message Message
 	switch notificationType {
 	case "player-joined":
-		content, _ = json.Marshal(PlayerListNotification{Players: game.Players})
+		content, _ = json.Marshal(notificationContent)
 
 		message = Message{
 			Type:    "player-joined",
 			Content: content,
 		}
 	case "game-started":
-		//TODO: Figure out what it means to start a game
+		content, _ = json.Marshal(notificationContent)
 		message = Message{
 			Type:    "game-started",
-			Content: nil,
+			Content: content,
 		}
 	}
 
@@ -69,8 +69,4 @@ func notifyPlayers(gameCode string, notificationType string) {
 			delete(game.Clients, client) // Remove client if there's an error
 		}
 	}
-}
-
-func startGame(startGameRequest StartGameRequest) {
-	notifyPlayers(startGameRequest.RoomCode, "game-started")
 }

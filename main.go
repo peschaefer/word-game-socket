@@ -15,7 +15,7 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-var games map[string]*Game
+var rooms map[string]*Room
 
 func handleConnection(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -46,14 +46,14 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 		case "create-game":
 			fmt.Printf("Received message: %s\n", msg)
 
-			gameCode := generateGameCode()
-			fmt.Printf("Game Code: %s\n", gameCode)
+			roomCode := generateRoomCode()
+			fmt.Printf("Room Code: %s\n", roomCode)
 
-			//conn.WriteMessage(messageType, []byte(generateGameCode()))
+			//conn.WriteMessage(messageType, []byte(generateRoomCode()))
 
-			games[gameCode] = &Game{Players: []string{}, Clients: make(map[*websocket.Conn]bool), Host: conn}
+			rooms[roomCode] = &Room{Players: []string{}, Clients: make(map[*websocket.Conn]bool), Host: conn}
 
-			response := CreateGameResponse{RoomCode: gameCode}
+			response := CreateGameResponse{RoomCode: roomCode}
 			content, _ := json.Marshal(response)
 
 			err = conn.WriteJSON(Message{Type: "game-created", Content: content})
@@ -69,25 +69,25 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			gameCode := joinGameRequest.RoomCode
+			roomCode := joinGameRequest.RoomCode
 			username := joinGameRequest.Username
 
-			game, exists := games[gameCode]
+			room, exists := rooms[roomCode]
 			if exists {
-				fmt.Printf("Game Exists!")
-				game.Players = append(game.Players, username)
-				game.Clients[conn] = true
+				fmt.Printf("Room Exists!")
+				room.Players = append(room.Players, username)
+				room.Clients[conn] = true
 
 				// Notify all clients in the room
-				notifyPlayers(gameCode, "player-joined")
+				notifyPlayers(roomCode, "player-joined", PlayerListNotification{Players: room.Players})
 
-				response := JoinGameResponse{RoomCode: gameCode, Players: game.Players}
+				response := JoinGameResponse{RoomCode: roomCode, Players: room.Players}
 				content, _ := json.Marshal(response)
 
 				err = conn.WriteJSON(Message{Type: "joined-game", Content: content})
 			} else {
-				fmt.Printf("Game Doesn't!")
-				err = conn.WriteJSON(Message{Type: "error-joining-game", Content: json.RawMessage(`{"error": "Game does not exist"}`)})
+				fmt.Printf("Room Doesn't!")
+				err = conn.WriteJSON(Message{Type: "error-joining-game", Content: json.RawMessage(`{"error": "Room does not exist"}`)})
 			}
 
 			if err != nil {
@@ -101,13 +101,13 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			game, exists := games[startGameRequest.RoomCode]
+			room, exists := rooms[startGameRequest.RoomCode]
 
 			if !exists {
 				return
 			}
 
-			if conn != game.Host {
+			if conn != room.Host {
 				err = conn.WriteJSON(Message{Type: "error-starting-game", Content: json.RawMessage(`{"error": "Player is not host"}`)})
 				return
 			}
@@ -118,7 +118,7 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	games = make(map[string]*Game)
+	rooms = make(map[string]*Room)
 	http.HandleFunc("/ws", handleConnection)
 	serverAddr := "localhost:8080"
 	fmt.Printf("Server started at ws://%s\n", serverAddr)
@@ -128,7 +128,7 @@ func main() {
 	}
 }
 
-func generateGameCode() string {
+func generateRoomCode() string {
 	const charset = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789"
 	var sb strings.Builder
 	sb.Grow(5)
