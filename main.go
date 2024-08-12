@@ -9,20 +9,6 @@ import (
 	"strings"
 )
 
-type Message struct {
-	Type    string          `json:"type"`
-	Content json.RawMessage `json:"content"`
-}
-
-type JoinGame struct {
-	RoomCode string `json:"room_code"`
-	Username string `json:"username"`
-}
-
-type CreateGameResponse struct {
-	RoomCode string `json:"room_code"`
-}
-
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		return true
@@ -56,11 +42,8 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
-		// var roomInfo RoomInfo
-		// err := json.Unmarshal(msg.Content, &roomInfo)
-
-		if msg.Type == "create-game" {
-
+		switch msg.Type {
+		case "create-game":
 			fmt.Printf("Received message: %s\n", msg)
 
 			gameCode := generateGameCode()
@@ -73,14 +56,14 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 			response := CreateGameResponse{RoomCode: gameCode}
 			content, _ := json.Marshal(response)
 
-			err = conn.WriteJSON(Message{Type: "game-created", Content: json.RawMessage(content)})
+			err = conn.WriteJSON(Message{Type: "game-created", Content: content})
 
 			if err != nil {
 				fmt.Println("Error while writing message:", err)
 				break
 			}
-		} else if msg.Type == "add-player" {
-			var joinGameRequest JoinGame
+		case "add-player":
+			var joinGameRequest JoinGameRequest
 			err := json.Unmarshal(msg.Content, &joinGameRequest)
 			if err != nil {
 				return
@@ -98,10 +81,10 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 				// Notify all clients in the room
 				notifyPlayers(gameCode, username)
 
-				response := CreateGameResponse{RoomCode: gameCode}
+				response := JoinGameResponse{RoomCode: gameCode, Players: game.Players}
 				content, _ := json.Marshal(response)
 
-				err = conn.WriteJSON(Message{Type: "joined-game", Content: json.RawMessage(content)})
+				err = conn.WriteJSON(Message{Type: "joined-game", Content: content})
 			} else {
 				fmt.Printf("Game Doesn't!")
 				err = conn.WriteJSON(Message{Type: "error-joining-game", Content: json.RawMessage("Game does not exist")})
@@ -137,29 +120,4 @@ func generateGameCode() string {
 	}
 
 	return sb.String()
-}
-
-func notifyPlayers(gameCode string, username string) {
-	game, exists := games[gameCode]
-	if !exists {
-		return
-	}
-
-	message := Message{
-		//TODO: send the full list of players, not just the new one
-		Type:    "player-joined",
-		Content: json.RawMessage(fmt.Sprintf(`{"username": "%s"}`, username)),
-	}
-
-	for client := range game.Clients {
-		err := client.WriteJSON(message)
-		if err != nil {
-			fmt.Println("Error sending message to client:", err)
-			err := client.Close()
-			if err != nil {
-				return
-			}
-			delete(game.Clients, client) // Remove client if there's an error
-		}
-	}
 }
