@@ -51,7 +51,7 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 
 			//conn.WriteMessage(messageType, []byte(generateGameCode()))
 
-			games[gameCode] = &Game{Players: []string{}, Clients: make(map[*websocket.Conn]bool)}
+			games[gameCode] = &Game{Players: []string{}, Clients: make(map[*websocket.Conn]bool), Host: conn}
 
 			response := CreateGameResponse{RoomCode: gameCode}
 			content, _ := json.Marshal(response)
@@ -79,7 +79,7 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 				game.Clients[conn] = true
 
 				// Notify all clients in the room
-				notifyPlayers(gameCode, username)
+				notifyPlayers(gameCode, "player-joined")
 
 				response := JoinGameResponse{RoomCode: gameCode, Players: game.Players}
 				content, _ := json.Marshal(response)
@@ -94,6 +94,25 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 				fmt.Println("Error while writing message:", err)
 				break
 			}
+		case "start-game":
+			var startGameRequest StartGameRequest
+			err := json.Unmarshal(msg.Content, &startGameRequest)
+			if err != nil {
+				return
+			}
+
+			game, exists := games[startGameRequest.RoomCode]
+
+			if !exists {
+				return
+			}
+
+			if conn != game.Host {
+				err = conn.WriteJSON(Message{Type: "error-starting-game", Content: json.RawMessage(`{"error": "Player is not host"}`)})
+				return
+			}
+
+			startGame(startGameRequest)
 		}
 	}
 }

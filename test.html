@@ -5,29 +5,27 @@
 </head>
 <body>
     <h1>WebSocket Test</h1>
-<!--    <div class="websocket-status">-->
-<!--        <h2 class="websocket-status-message"></h2>-->
-<!--    </div>-->
     <input type="text" id="usernameInput" placeholder="Type a username">
     <input type="text" id="roomCodeInput" placeholder="Type a room code">
     <button onclick="joinRoom(document.getElementById('roomCodeInput').value)">Join Room</button>
     <button onclick="createRoom()">Create Room</button>
+    <button onclick="startGame(document.getElementById('roomCodeInput').value)">Start Game</button>
     <pre id="messages"></pre>
     <script>
         const ws = new WebSocket('ws://localhost:8080/ws');
 
         ws.onopen = () => {
-            //document.getElementById("websocket-status").classList.toggle("good")
-            //document.getElementById("websocket-status-message").innerText = "Connection Established"
             console.log('WebSocket connection established');
         };
 
         ws.onmessage = (event) => {
             const messages = document.getElementById('messages');
             messages.textContent += `Received: ${event.data}\n`;
-            debugger;
-
             const response = JSON.parse(event.data)
+
+            if(response.type === "game-created"){
+                document.getElementById("roomCodeInput").value = response.content.room_code
+            }
 
             switch(response.type){
                 case "game-created": joinRoom(response.content.room_code)
@@ -58,6 +56,14 @@
             const message = { type: 'join-game', content: {room_code: roomCode, username: username} };
             console.log(message);
                 ws.send(JSON.stringify(message));
+        }
+
+        function startGame(roomCode) {
+            const username = document.getElementById('usernameInput').value;
+
+            const message = { type: 'start-game', content: {room_code: roomCode} };
+            console.log(message);
+            ws.send(JSON.stringify(message));
         }
     </script>
 </body>

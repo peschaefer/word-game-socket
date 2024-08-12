@@ -16,6 +16,10 @@ type JoinGameRequest struct {
 	Username string `json:"username"`
 }
 
+type StartGameRequest struct {
+	RoomCode string `json:"room_code"`
+}
+
 type CreateGameResponse struct {
 	RoomCode string `json:"room_code"`
 }
@@ -30,18 +34,27 @@ type JoinGameResponse struct {
 }
 
 // Functions
-func notifyPlayers(gameCode string, username string) {
+func notifyPlayers(gameCode string, notificationType string) {
 	game, exists := games[gameCode]
 	if !exists {
 		return
 	}
+	var content []byte
+	var message Message
+	switch notificationType {
+	case "player-joined":
+		content, _ = json.Marshal(PlayerListNotification{Players: game.Players})
 
-	content, _ := json.Marshal(PlayerListNotification{Players: game.Players})
-
-	message := Message{
-		//TODO: send the full list of players, not just the new one
-		Type:    "player-joined",
-		Content: content,
+		message = Message{
+			Type:    "player-joined",
+			Content: content,
+		}
+	case "game-started":
+		//TODO: Figure out what it means to start a game
+		message = Message{
+			Type:    "game-started",
+			Content: nil,
+		}
 	}
 
 	for client := range game.Clients {
@@ -56,4 +69,8 @@ func notifyPlayers(gameCode string, username string) {
 			delete(game.Clients, client) // Remove client if there's an error
 		}
 	}
+}
+
+func startGame(startGameRequest StartGameRequest) {
+	notifyPlayers(startGameRequest.RoomCode, "game-started")
 }
