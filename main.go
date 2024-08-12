@@ -62,7 +62,7 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 				fmt.Println("Error while writing message:", err)
 				break
 			}
-		case "add-player":
+		case "join-game":
 			var joinGameRequest JoinGameRequest
 			err := json.Unmarshal(msg.Content, &joinGameRequest)
 			if err != nil {
@@ -87,7 +87,7 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 				err = conn.WriteJSON(Message{Type: "joined-game", Content: content})
 			} else {
 				fmt.Printf("Game Doesn't!")
-				err = conn.WriteJSON(Message{Type: "error-joining-game", Content: json.RawMessage("Game does not exist")})
+				err = conn.WriteJSON(Message{Type: "error-joining-game", Content: json.RawMessage(`{"error": "Game does not exist"}`)})
 			}
 
 			if err != nil {

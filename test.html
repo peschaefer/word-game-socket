@@ -5,6 +5,9 @@
 </head>
 <body>
     <h1>WebSocket Test</h1>
+<!--    <div class="websocket-status">-->
+<!--        <h2 class="websocket-status-message"></h2>-->
+<!--    </div>-->
     <input type="text" id="usernameInput" placeholder="Type a username">
     <input type="text" id="roomCodeInput" placeholder="Type a room code">
     <button onclick="joinRoom(document.getElementById('roomCodeInput').value)">Join Room</button>
@@ -14,6 +17,8 @@
         const ws = new WebSocket('ws://localhost:8080/ws');
 
         ws.onopen = () => {
+            //document.getElementById("websocket-status").classList.toggle("good")
+            //document.getElementById("websocket-status-message").innerText = "Connection Established"
             console.log('WebSocket connection established');
         };
 
@@ -28,6 +33,12 @@
                 case "game-created": joinRoom(response.content.room_code)
             }
         };
+
+        ws.onerror = () => {
+            //document.getElementById("websocket-status").classList.toggle("bad")
+            //document.getElementById("websocket-status-message").innerText = "Connection Failed"
+            console.log('WebSocket connection failed');
+        }
 
         function createRoom() {
             const roomCode = document.getElementById('roomCodeInput');
@@ -44,10 +55,24 @@
         function joinRoom(roomCode) {
             const username = document.getElementById('usernameInput').value;
 
-            const message = { type: 'add-player', content: {room_code: roomCode, username: username} };
+            const message = { type: 'join-game', content: {room_code: roomCode, username: username} };
             console.log(message);
                 ws.send(JSON.stringify(message));
         }
     </script>
 </body>
+<style>
+    .good{
+        background-color: green;
+    }
+
+    .bad{
+        background-color: red;
+    }
+
+    .websocket-status{
+        height: 100px;
+        width: 100%;
+    }
+</style>
 </html>
