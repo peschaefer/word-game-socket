@@ -33,6 +33,10 @@ type JoinGameResponse struct {
 	Players  []string
 }
 
+type CountdownNotification struct {
+	TimeRemaining int `json:"time_remaining"`
+}
+
 // Functions
 func notifyPlayers(gameCode string, notificationType string, notificationContent interface{}) {
 	game, exists := rooms[gameCode]
@@ -41,20 +45,12 @@ func notifyPlayers(gameCode string, notificationType string, notificationContent
 	}
 	var content []byte
 	var message Message
-	switch notificationType {
-	case "player-joined":
-		content, _ = json.Marshal(notificationContent)
 
-		message = Message{
-			Type:    "player-joined",
-			Content: content,
-		}
-	case "game-started":
-		content, _ = json.Marshal(notificationContent)
-		message = Message{
-			Type:    "game-started",
-			Content: content,
-		}
+	content, _ = json.Marshal(notificationContent)
+
+	message = Message{
+		Type:    notificationType,
+		Content: content,
 	}
 
 	for client := range game.Clients {

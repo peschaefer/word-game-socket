@@ -1,6 +1,9 @@
 package main
 
-import "github.com/gorilla/websocket"
+import (
+	"github.com/gorilla/websocket"
+	"time"
+)
 
 type Room struct {
 	Players []string
@@ -40,9 +43,21 @@ func startGame(startGameRequest StartGameRequest) {
 		}
 	}
 
+	go countdown(startGameRequest.RoomCode, 30)
+
 	notifyPlayers(startGameRequest.RoomCode, "game-started", room.Game)
 }
 
 func generatePrompt() string {
 	return "Bugs"
+}
+
+func countdown(roomCode string, duration int) {
+	for i := duration; i > 0; i-- {
+		//check to see if all players have submitted
+		time.Sleep(1 * time.Second)
+		notifyPlayers(roomCode, "countdown", CountdownNotification{TimeRemaining: i})
+	}
+	time.Sleep(1 * time.Second)
+	notifyPlayers(roomCode, "countdown", CountdownNotification{TimeRemaining: 0})
 }
