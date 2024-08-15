@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/google/uuid"
 )
 
 // Message Models
@@ -37,6 +38,11 @@ type CountdownNotification struct {
 	TimeRemaining int `json:"time_remaining"`
 }
 
+type AnswerSubmission struct {
+	RoomCode string `json:"room_code"`
+	Answer   string `json:"answer"`
+}
+
 // Functions
 func notifyPlayers(gameCode string, notificationType string, notificationContent interface{}) {
 	game, exists := rooms[gameCode]
@@ -65,4 +71,16 @@ func notifyPlayers(gameCode string, notificationType string, notificationContent
 			delete(game.Clients, client) // Remove client if there's an error
 		}
 	}
+}
+
+func createPlayerList(playersMap map[uuid.UUID]Player) []string {
+	players := make([]string, len(playersMap))
+	index := 0
+
+	for _, p := range playersMap {
+		players[index] = p.Username
+		index++
+	}
+
+	return players
 }

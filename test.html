@@ -7,12 +7,15 @@
     <h1>WebSocket Test</h1>
     <input type="text" id="usernameInput" placeholder="Type a username">
     <input type="text" id="roomCodeInput" placeholder="Type a room code">
+    <input type="text" id="promptInput" placeholder="Type your answer here" class="hidden">
     <button onclick="joinRoom(document.getElementById('roomCodeInput').value)">Join Room</button>
     <button onclick="createRoom()">Create Room</button>
-    <button onclick="startGame(document.getElementById('roomCodeInput').value)">Start Game</button>
+    <button onclick="requestGameStart(document.getElementById('roomCodeInput').value)">Start Game</button>
+    <button onclick="submitResponse(document.getElementById('roomCodeInput').value, document.getElementById('promptInput').value)">Submit</button>
     <pre id="messages"></pre>
     <script>
         const ws = new WebSocket('ws://localhost:8080/ws');
+        let playing = false;
 
         ws.onopen = () => {
             console.log('WebSocket connection established');
@@ -29,12 +32,14 @@
 
             switch(response.type){
                 case "game-created": joinRoom(response.content.room_code)
+                    return
+                case "round-completed": endRound();
+                    return
+                case "game-started": startGame()
             }
         };
 
         ws.onerror = () => {
-            //document.getElementById("websocket-status").classList.toggle("bad")
-            //document.getElementById("websocket-status-message").innerText = "Connection Failed"
             console.log('WebSocket connection failed');
         }
 
@@ -45,25 +50,33 @@
             let message = { type: 'create-game', content: "" };
             console.log(message);
             ws.send(JSON.stringify(message));
-
-            // message = { type: 'add-player', content: {room_code: roomCode, username: username} };
-            // ws.send(JSON.stringify(message));
         }
 
         function joinRoom(roomCode) {
             const username = document.getElementById('usernameInput').value;
-
             const message = { type: 'join-game', content: {room_code: roomCode, username: username} };
             console.log(message);
-                ws.send(JSON.stringify(message));
+            ws.send(JSON.stringify(message));
         }
 
-        function startGame(roomCode) {
-            const username = document.getElementById('usernameInput').value;
-
+        function requestGameStart(roomCode) {
             const message = { type: 'start-game', content: {room_code: roomCode} };
             console.log(message);
             ws.send(JSON.stringify(message));
+        }
+
+        function endRound(){
+            document.getElementById('promptInput').classList.toggle('hidden')
+        }
+
+        function startGame(){
+            playing = true
+            document.getElementById('promptInput').classList.toggle('hidden')
+        }
+
+        function submitResponse(answer, roomCode){
+            const message = { type: 'submit-answer', content: {room_code: roomCode, answer: answer}}
+            ws.send(JSON.stringify(message))
         }
     </script>
 </body>
@@ -79,6 +92,10 @@
     .websocket-status{
         height: 100px;
         width: 100%;
+    }
+
+    .hidden{
+        display: none;
     }
 </style>
 </html>

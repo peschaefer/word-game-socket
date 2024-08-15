@@ -1,12 +1,13 @@
 package main
 
 import (
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"time"
 )
 
 type Room struct {
-	Players []string
+	Players map[uuid.UUID]Player
 	Clients map[*websocket.Conn]bool
 	Host    *websocket.Conn
 	Game    *Game
@@ -14,7 +15,7 @@ type Room struct {
 
 type PlayerGameData struct {
 	Username    string
-	Id          string
+	Id          uuid.UUID
 	WordHistory []string
 	Letters     string
 	//TODO: Make into an enumerated type
@@ -28,19 +29,21 @@ type Game struct {
 	PromptHistory []string
 }
 
+type Player struct {
+	Username   string
+	Connection *websocket.Conn
+	Data       PlayerGameData
+}
+
 func startGame(startGameRequest StartGameRequest) {
 	room := rooms[startGameRequest.RoomCode]
 
 	room.Game = &Game{Round: 0, PlayerData: make([]*PlayerGameData, len(room.Players)), CurrentPrompt: generatePrompt(), PromptHistory: make([]string, 0)}
 
-	for i, player := range room.Players {
-		room.Game.PlayerData[i] = &PlayerGameData{
-			Username:    player,
-			Id:          "1", //generatePlayerID(), // Implement this to generate unique player IDs
-			WordHistory: []string{},
-			Letters:     "!",
-			Status:      "Answering",
-		}
+	index := 0
+	for _, player := range room.Players {
+		room.Game.PlayerData[index] = &player.Data
+		index++
 	}
 
 	go countdown(startGameRequest.RoomCode, 30)
@@ -59,5 +62,20 @@ func countdown(roomCode string, duration int) {
 		notifyPlayers(roomCode, "countdown", CountdownNotification{TimeRemaining: i})
 	}
 	time.Sleep(1 * time.Second)
-	notifyPlayers(roomCode, "countdown", CountdownNotification{TimeRemaining: 0})
+	notifyPlayers(roomCode, "round-completed", CountdownNotification{TimeRemaining: 0})
+}
+
+func createPlayer(username string) (Player, uuid.UUID) {
+	id := uuid.New()
+	return Player{
+		Username:   username,
+		Connection: nil,
+		Data: PlayerGameData{
+			Username:    username,
+			Id:          id,
+			WordHistory: []string{},
+			Letters:     "!",
+			Status:      "main-menu",
+		},
+	}, id
 }
