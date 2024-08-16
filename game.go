@@ -83,3 +83,10 @@ func createPlayer(username string) (Player, uuid.UUID) {
 		},
 	}, id
 }
+
+func startNewRound(room *Room) {
+	room.Game.Round++
+	room.Game.PromptHistory = append(room.Game.PromptHistory, room.Game.CurrentPrompt)
+	room.Game.CurrentPrompt = generatePrompt()
+	go countdown(room, 30)
+}

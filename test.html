@@ -8,14 +8,16 @@
     <input type="text" id="usernameInput" placeholder="Type a username" value="Peyton">
     <input type="text" id="roomCodeInput" placeholder="Type a room code">
     <input type="text" id="promptInput" placeholder="Type your answer here" class="hidden" value="ants">
+    <input type="text" id="userIdInput" style="display: none">
     <button onclick="joinRoom(document.getElementById('roomCodeInput').value)">Join Room</button>
     <button onclick="createRoom()">Create Room</button>
     <button onclick="requestGameStart(document.getElementById('roomCodeInput').value)">Start Game</button>
     <button onclick="submitResponse(document.getElementById('promptInput').value, document.getElementById('roomCodeInput').value)">Submit</button>
+    <button onclick="readyUp()">Ready</button>
+    <p>Question: <span id="prompt"></span></p>
     <pre id="messages"></pre>
     <script>
         const ws = new WebSocket('ws://localhost:8080/ws');
-        let playing = false;
 
         ws.onopen = () => {
             console.log('WebSocket connection established');
@@ -37,9 +39,13 @@
                     return
                 case "game-started": startGame()
                     return
-                case "joined-game": localStorage.setItem("userId", response.content.user_id);
+                case "joined-game": document.getElementById("userIdInput").value = response.content.user_id;
                     return
-                case "game-started": document.getElementById("promptInput").classList.toggle("hidden")
+                case "round-started":
+                    debugger;
+                    document.getElementById('promptInput').classList.toggle('hidden')
+                    document.getElementById('prompt').innerText = response.content.CurrentPrompt
+                    return
             }
         };
 
@@ -48,9 +54,6 @@
         }
 
         function createRoom() {
-            const roomCode = document.getElementById('roomCodeInput');
-            const username = document.getElementById('usenameInput');
-
             let message = { type: 'create-game', content: "" };
             console.log(message);
             ws.send(JSON.stringify(message));
@@ -74,13 +77,19 @@
         }
 
         function startGame(){
-            playing = true
             document.getElementById('promptInput').classList.toggle('hidden')
         }
 
         function submitResponse(answer, roomCode){
-            const id = localStorage.getItem("userId");
+            const id = document.getElementById("userIdInput").value;
             const message = { type: 'submit-answer', content: {room_code: roomCode, answer: answer, player_id: id}}
+            ws.send(JSON.stringify(message))
+        }
+
+        function readyUp(){
+            const id = document.getElementById("userIdInput").value;
+            const roomCode = document.getElementById("roomCodeInput").value;
+            const message = { type: 'ready-up', content: {room_code: roomCode, player_id: id}}
             ws.send(JSON.stringify(message))
         }
     </script>

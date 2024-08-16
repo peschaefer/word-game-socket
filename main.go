@@ -147,22 +147,53 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 			player.Data.Letters = player.Data.Letters + answerSubmission.Answer
 			player.Data.WordHistory = append(player.Data.WordHistory, answerSubmission.Answer)
 
-			roundComplete := checkAllPlayersSubmit(room.Game)
+			roundComplete := checkAllPlayersStatus(room.Game, "submitted")
 
 			if roundComplete {
 				room.Game.Status = "round-completed"
-				notifyPlayers(answerSubmission.RoomCode, "round-completed", room.Game)
+				notifyPlayers(room.RoomCode, "round-completed", room.Game)
 			} else {
-				notifyPlayers(answerSubmission.RoomCode, "game-updated", room.Game)
+				notifyPlayers(room.RoomCode, "game-updated", room.Game)
+			}
+		case "ready-up":
+			var readyUp ReadyUp
+
+			err := json.Unmarshal(msg.Content, &readyUp)
+			if err != nil {
+				return
 			}
 
+			room, exists := rooms[readyUp.RoomCode]
+
+			if !exists {
+				err = conn.WriteJSON(Message{Type: "error-submitting-answer", Content: json.RawMessage(`{"error": "Game does not exist"}`)})
+				continue
+			}
+
+			player, exists := room.Players[readyUp.PlayerId]
+
+			if !exists {
+				err = conn.WriteJSON(Message{Type: "error-submitting-answer", Content: json.RawMessage(`{"error": "Player with that Id does not exist"}`)})
+				continue
+			}
+
+			player.Data.Status = "ready"
+
+			allReady := checkAllPlayersStatus(room.Game, "ready")
+
+			if allReady {
+				room.Game.Status = "round-ongoing"
+				startNewRound(room)
+				notifyPlayers(room.RoomCode, "round-started", room.Game)
+			}
+			//notify current player that ready up worked?
 		}
 	}
 }
 
-func checkAllPlayersSubmit(game *Game) bool {
+func checkAllPlayersStatus(game *Game, status string) bool {
 	for _, player := range game.PlayerData {
-		if player.Status != "submitted" {
+		if player.Status != status {
 			return false
 		}
 	}

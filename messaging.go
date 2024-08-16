@@ -45,6 +45,11 @@ type AnswerSubmission struct {
 	PlayerId uuid.UUID `json:"player_id"`
 }
 
+type ReadyUp struct {
+	RoomCode string    `json:"room_code"`
+	PlayerId uuid.UUID `json:"player_id"`
+}
+
 // Functions
 func notifyPlayers(gameCode string, notificationType string, notificationContent interface{}) {
 	game, exists := rooms[gameCode]
