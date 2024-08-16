@@ -50,7 +50,7 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 			roomCode := generateRoomCode()
 			fmt.Printf("Room Code: %s\n", roomCode)
 
-			rooms[roomCode] = &Room{Players: make(map[uuid.UUID]Player), Clients: make(map[*websocket.Conn]bool), Host: conn}
+			rooms[roomCode] = &Room{RoomCode: roomCode, Players: make(map[uuid.UUID]Player), Clients: make(map[*websocket.Conn]bool), Host: conn}
 
 			response := CreateGameResponse{RoomCode: roomCode}
 			content, _ := json.Marshal(response)
@@ -129,15 +129,44 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 
 			//check to see if answer is valid
 
-			_, exists := rooms[answerSubmission.RoomCode]
+			room, exists := rooms[answerSubmission.RoomCode]
 
 			if !exists {
-				err = conn.WriteJSON(Message{Type: "error-starting-game", Content: json.RawMessage(`{"error": "Game does not exist"}`)})
+				err = conn.WriteJSON(Message{Type: "error-submitting-answer", Content: json.RawMessage(`{"error": "Game does not exist"}`)})
 				continue
+			}
+
+			player, exists := room.Players[answerSubmission.PlayerId]
+
+			if !exists {
+				err = conn.WriteJSON(Message{Type: "error-submitting-answer", Content: json.RawMessage(`{"error": "Player with that Id does not exist"}`)})
+				continue
+			}
+
+			player.Data.Status = "submitted"
+			player.Data.Letters = player.Data.Letters + answerSubmission.Answer
+			player.Data.WordHistory = append(player.Data.WordHistory, answerSubmission.Answer)
+
+			roundComplete := checkAllPlayersSubmit(room.Game)
+
+			if roundComplete {
+				room.Game.Status = "round-completed"
+				notifyPlayers(answerSubmission.RoomCode, "round-completed", room.Game)
+			} else {
+				notifyPlayers(answerSubmission.RoomCode, "game-updated", room.Game)
 			}
 
 		}
 	}
+}
+
+func checkAllPlayersSubmit(game *Game) bool {
+	for _, player := range game.PlayerData {
+		if player.Status != "submitted" {
+			return false
+		}
+	}
+	return true
 }
 
 func main() {

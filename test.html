@@ -5,13 +5,13 @@
 </head>
 <body>
     <h1>WebSocket Test</h1>
-    <input type="text" id="usernameInput" placeholder="Type a username">
+    <input type="text" id="usernameInput" placeholder="Type a username" value="Peyton">
     <input type="text" id="roomCodeInput" placeholder="Type a room code">
-    <input type="text" id="promptInput" placeholder="Type your answer here" class="hidden">
+    <input type="text" id="promptInput" placeholder="Type your answer here" class="hidden" value="ants">
     <button onclick="joinRoom(document.getElementById('roomCodeInput').value)">Join Room</button>
     <button onclick="createRoom()">Create Room</button>
     <button onclick="requestGameStart(document.getElementById('roomCodeInput').value)">Start Game</button>
-    <button onclick="submitResponse(document.getElementById('roomCodeInput').value, document.getElementById('promptInput').value)">Submit</button>
+    <button onclick="submitResponse(document.getElementById('promptInput').value, document.getElementById('roomCodeInput').value)">Submit</button>
     <pre id="messages"></pre>
     <script>
         const ws = new WebSocket('ws://localhost:8080/ws');

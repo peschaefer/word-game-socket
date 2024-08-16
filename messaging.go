@@ -40,8 +40,9 @@ type CountdownNotification struct {
 }
 
 type AnswerSubmission struct {
-	RoomCode string `json:"room_code"`
-	Answer   string `json:"answer"`
+	RoomCode string    `json:"room_code"`
+	Answer   string    `json:"answer"`
+	PlayerId uuid.UUID `json:"player_id"`
 }
 
 // Functions
