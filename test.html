@@ -36,6 +36,10 @@
                 case "round-completed": endRound();
                     return
                 case "game-started": startGame()
+                    return
+                case "joined-game": localStorage.setItem("userId", response.content.user_id);
+                    return
+                case "game-started": document.getElementById("promptInput").classList.toggle("hidden")
             }
         };
 
@@ -75,7 +79,8 @@
         }
 
         function submitResponse(answer, roomCode){
-            const message = { type: 'submit-answer', content: {room_code: roomCode, answer: answer}}
+            const id = localStorage.getItem("userId");
+            const message = { type: 'submit-answer', content: {room_code: roomCode, answer: answer, player_id: id}}
             ws.send(JSON.stringify(message))
         }
     </script>

@@ -85,7 +85,7 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 				// Notify all clients in the room
 				notifyPlayers(roomCode, "player-joined", PlayerListNotification{Players: playerList})
 
-				response := JoinGameResponse{RoomCode: roomCode, Players: playerList}
+				response := JoinGameResponse{RoomCode: roomCode, Players: playerList, PlayerId: id}
 				content, _ := json.Marshal(response)
 
 				err = conn.WriteJSON(Message{Type: "joined-game", Content: content})

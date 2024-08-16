@@ -32,6 +32,7 @@ type PlayerListNotification struct {
 type JoinGameResponse struct {
 	RoomCode string
 	Players  []string
+	PlayerId uuid.UUID `json:"user_id"`
 }
 
 type CountdownNotification struct {
