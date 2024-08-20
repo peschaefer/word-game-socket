@@ -30,8 +30,8 @@ type PlayerListNotification struct {
 }
 
 type JoinGameResponse struct {
-	RoomCode string
-	Players  []string
+	RoomCode string    `json:"room_code"`
+	Players  []string  `json:"players"`
 	PlayerId uuid.UUID `json:"user_id"`
 }
 

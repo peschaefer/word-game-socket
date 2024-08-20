@@ -15,20 +15,19 @@ type Room struct {
 }
 
 type PlayerGameData struct {
-	Username    string
-	Id          uuid.UUID
-	WordHistory []string
-	Letters     string
-	//TODO: Make into an enumerated type
-	Status string
+	Username    string    `json:"username"`
+	Id          uuid.UUID `json:"user_id"`
+	WordHistory []string  `json:"word_history"`
+	Letters     string    `json:"letters"`
+	Status      string    `json:"status"`
 }
 
 type Game struct {
-	Round         int
-	PlayerData    []*PlayerGameData
-	CurrentPrompt string
-	PromptHistory []string
-	Status        string
+	Round         int               `json:"round"`
+	PlayerData    []*PlayerGameData `json:"player_data"`
+	CurrentPrompt string            `json:"current_prompt"`
+	PromptHistory []string          `json:"prompt_history"`
+	Status        string            `json:"status"`
 }
 
 type Player struct {
@@ -50,6 +49,8 @@ func startGame(startGameRequest StartGameRequest) {
 
 	go countdown(room, 30)
 
+	updatePlayerStatus(room, "answering")
+
 	notifyPlayers(startGameRequest.RoomCode, "game-started", room.Game)
 }
 
@@ -66,7 +67,7 @@ func countdown(room *Room, duration int) {
 		notifyPlayers(room.RoomCode, "countdown", CountdownNotification{TimeRemaining: i})
 	}
 	time.Sleep(1 * time.Second)
-	notifyPlayers(room.RoomCode, "round-completed", CountdownNotification{TimeRemaining: 0})
+	endRound(room)
 }
 
 func createPlayer(username string) (Player, uuid.UUID) {
@@ -88,5 +89,31 @@ func startNewRound(room *Room) {
 	room.Game.Round++
 	room.Game.PromptHistory = append(room.Game.PromptHistory, room.Game.CurrentPrompt)
 	room.Game.CurrentPrompt = generatePrompt()
+	updatePlayerStatus(room, "answering")
 	go countdown(room, 30)
+}
+
+func decreasePlayerLetters(game *Game, amount int) {
+	for _, playerData := range game.PlayerData {
+		playerData.Letters = removeFromFront(playerData.Letters, amount)
+	}
+}
+
+func removeFromFront(s string, amount int) string {
+	if amount >= len(s) {
+		return "" // Return an empty string if amount is greater than or equal to the string length
+	}
+	return s[amount:]
+}
+
+func endRound(room *Room) {
+	//come up with a dynamic way to decrease player letters based on the range of letter lengths and rounds
+	decreasePlayerLetters(room.Game, 3)
+	notifyPlayers(room.RoomCode, "post-round-adjustment", room.Game)
+}
+
+func updatePlayerStatus(room *Room, status string) {
+	for _, playerData := range room.Game.PlayerData {
+		playerData.Status = status
+	}
 }

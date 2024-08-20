@@ -152,7 +152,9 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 			if roundComplete {
 				room.Game.Status = "round-completed"
 				notifyPlayers(room.RoomCode, "round-completed", room.Game)
+				endRound(room)
 			} else {
+				err = conn.WriteJSON(Message{Type: "answer-accepted"})
 				notifyPlayers(room.RoomCode, "game-updated", room.Game)
 			}
 		case "ready-up":
