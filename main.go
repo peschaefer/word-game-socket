@@ -144,7 +144,7 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 			}
 
 			player.Data.Status = "submitted"
-			player.Data.Letters = player.Data.Letters + answerSubmission.Answer
+			player.Data.Letters = answerSubmission.Answer + player.Data.Letters
 			player.Data.WordHistory = append(player.Data.WordHistory, answerSubmission.Answer)
 
 			roundComplete := checkAllPlayersStatus(room.Game, "submitted")

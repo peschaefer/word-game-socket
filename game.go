@@ -16,17 +16,17 @@ type Room struct {
 
 type PlayerGameData struct {
 	Username    string    `json:"username"`
-	Id          uuid.UUID `json:"user_id"`
-	WordHistory []string  `json:"word_history"`
+	Id          uuid.UUID `json:"userId"`
+	WordHistory []string  `json:"wordHistory"`
 	Letters     string    `json:"letters"`
 	Status      string    `json:"status"`
 }
 
 type Game struct {
 	Round         int               `json:"round"`
-	PlayerData    []*PlayerGameData `json:"player_data"`
-	CurrentPrompt string            `json:"current_prompt"`
-	PromptHistory []string          `json:"prompt_history"`
+	PlayerData    []*PlayerGameData `json:"playerData"`
+	CurrentPrompt string            `json:"currentPrompt"`
+	PromptHistory []string          `json:"promptHistory"`
 	Status        string            `json:"status"`
 }
 
@@ -95,15 +95,15 @@ func startNewRound(room *Room) {
 
 func decreasePlayerLetters(game *Game, amount int) {
 	for _, playerData := range game.PlayerData {
-		playerData.Letters = removeFromFront(playerData.Letters, amount)
+		playerData.Letters = removeFromBack(playerData.Letters, amount)
 	}
 }
 
-func removeFromFront(s string, amount int) string {
+func removeFromBack(s string, amount int) string {
 	if amount >= len(s) {
 		return "" // Return an empty string if amount is greater than or equal to the string length
 	}
-	return s[amount:]
+	return s[:len(s)-amount]
 }
 
 func endRound(room *Room) {

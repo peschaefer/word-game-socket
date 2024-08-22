@@ -13,16 +13,16 @@ type Message struct {
 }
 
 type JoinGameRequest struct {
-	RoomCode string `json:"room_code"`
+	RoomCode string `json:"roomCode"`
 	Username string `json:"username"`
 }
 
 type StartGameRequest struct {
-	RoomCode string `json:"room_code"`
+	RoomCode string `json:"roomCode"`
 }
 
 type CreateGameResponse struct {
-	RoomCode string `json:"room_code"`
+	RoomCode string `json:"roomCode"`
 }
 
 type PlayerListNotification struct {
@@ -30,24 +30,24 @@ type PlayerListNotification struct {
 }
 
 type JoinGameResponse struct {
-	RoomCode string    `json:"room_code"`
+	RoomCode string    `json:"roomCode"`
 	Players  []string  `json:"players"`
-	PlayerId uuid.UUID `json:"user_id"`
+	PlayerId uuid.UUID `json:"userId"`
 }
 
 type CountdownNotification struct {
-	TimeRemaining int `json:"time_remaining"`
+	TimeRemaining int `json:"timeRemaining"`
 }
 
 type AnswerSubmission struct {
-	RoomCode string    `json:"room_code"`
+	RoomCode string    `json:"roomCode"`
 	Answer   string    `json:"answer"`
-	PlayerId uuid.UUID `json:"player_id"`
+	PlayerId uuid.UUID `json:"playerId"`
 }
 
 type ReadyUp struct {
-	RoomCode string    `json:"room_code"`
-	PlayerId uuid.UUID `json:"player_id"`
+	RoomCode string    `json:"roomCode"`
+	PlayerId uuid.UUID `json:"playerId"`
 }
 
 // Functions
