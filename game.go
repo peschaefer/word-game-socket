@@ -1,8 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"math/rand"
+	"strings"
 	"time"
 )
 
@@ -36,8 +39,16 @@ type Player struct {
 	Data       *PlayerGameData
 }
 
-func startGame(startGameRequest StartGameRequest) {
-	room := rooms[startGameRequest.RoomCode]
+func startGame(conn *websocket.Conn, startGameRequest StartGameRequest) *Message {
+	room, exists := rooms[startGameRequest.RoomCode]
+
+	if !exists {
+		return &Message{Type: "error-starting-game", Content: json.RawMessage(`{"error": "Game does not exist"}`)}
+	}
+
+	if conn != room.Host {
+		return &Message{Type: "error-starting-game", Content: json.RawMessage(`{"error": "Player is not host"}`)}
+	}
 
 	room.Game = &Game{Round: 0, PlayerData: make([]*PlayerGameData, len(room.Players)), CurrentPrompt: generatePrompt(), PromptHistory: make([]string, 0), Status: "prompting"}
 
@@ -52,6 +63,8 @@ func startGame(startGameRequest StartGameRequest) {
 	updatePlayerStatus(room, "answering")
 
 	notifyPlayers(startGameRequest.RoomCode, "game-started", room.Game)
+
+	return nil
 }
 
 func generatePrompt() string {
@@ -116,4 +129,26 @@ func updatePlayerStatus(room *Room, status string) {
 	for _, playerData := range room.Game.PlayerData {
 		playerData.Status = status
 	}
+}
+
+func generateRoomCode() string {
+	const charset = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789"
+	var sb strings.Builder
+	sb.Grow(5)
+
+	for i := 0; i < 5; i++ {
+		randomIndex := rand.Intn(len(charset))
+		sb.WriteByte(charset[randomIndex])
+	}
+
+	return sb.String()
+}
+
+func checkAllPlayersStatus(game *Game, status string) bool {
+	for _, player := range game.PlayerData {
+		if player.Status != status {
+			return false
+		}
+	}
+	return true
 }

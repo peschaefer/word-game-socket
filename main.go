@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"math/rand"
 	"net/http"
-	"strings"
 )
 
 var upgrader = websocket.Upgrader{
@@ -33,6 +31,8 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Println("Client connected")
 
+	var message *Message
+
 	for {
 		var msg Message
 
@@ -45,22 +45,7 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 
 		switch msg.Type {
 		case "create-game":
-			fmt.Printf("Received message: %s\n", msg)
-
-			roomCode := generateRoomCode()
-			fmt.Printf("Room Code: %s\n", roomCode)
-
-			rooms[roomCode] = &Room{RoomCode: roomCode, Players: make(map[uuid.UUID]Player), Clients: make(map[*websocket.Conn]bool), Host: conn}
-
-			response := CreateGameResponse{RoomCode: roomCode}
-			content, _ := json.Marshal(response)
-
-			err = conn.WriteJSON(Message{Type: "game-created", Content: content})
-
-			if err != nil {
-				fmt.Println("Error while writing message:", err)
-				break
-			}
+			message = createRoom(conn)
 		case "join-game":
 			var joinGameRequest JoinGameRequest
 			err := json.Unmarshal(msg.Content, &joinGameRequest)
@@ -68,36 +53,7 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			roomCode := joinGameRequest.RoomCode
-			username := joinGameRequest.Username
-
-			player, id := createPlayer(username)
-			player.Connection = conn
-
-			room, exists := rooms[roomCode]
-			if exists {
-				fmt.Printf("Room Exists!")
-				room.Players[id] = player
-				room.Clients[conn] = true
-
-				playerList := createPlayerList(room.Players)
-
-				// Notify all clients in the room
-				notifyPlayers(roomCode, "player-joined", PlayerListNotification{Players: playerList})
-
-				response := JoinGameResponse{RoomCode: roomCode, Players: playerList, PlayerId: id}
-				content, _ := json.Marshal(response)
-
-				err = conn.WriteJSON(Message{Type: "joined-game", Content: content})
-			} else {
-				fmt.Printf("Room Doesn't!")
-				err = conn.WriteJSON(Message{Type: "error-joining-game", Content: json.RawMessage(`{"error": "Room does not exist"}`)})
-			}
-
-			if err != nil {
-				fmt.Println("Error while writing message:", err)
-				break
-			}
+			message = joinGame(conn, joinGameRequest)
 		case "start-game":
 			var startGameRequest StartGameRequest
 			err := json.Unmarshal(msg.Content, &startGameRequest)
@@ -105,101 +61,132 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			room, exists := rooms[startGameRequest.RoomCode]
-
-			if !exists {
-				err = conn.WriteJSON(Message{Type: "error-starting-game", Content: json.RawMessage(`{"error": "Game does not exist"}`)})
-				continue
-			}
-
-			if conn != room.Host {
-				err = conn.WriteJSON(Message{Type: "error-starting-game", Content: json.RawMessage(`{"error": "Player is not host"}`)})
-				continue
-			}
-
-			startGame(startGameRequest)
-
+			message = startGame(conn, startGameRequest)
 		case "submit-answer":
 			var answerSubmission AnswerSubmission
-
 			err := json.Unmarshal(msg.Content, &answerSubmission)
 			if err != nil {
 				return
 			}
 
-			//check to see if answer is valid
+			message = handleAnswerSubmit(conn, answerSubmission)
 
-			room, exists := rooms[answerSubmission.RoomCode]
-
-			if !exists {
-				err = conn.WriteJSON(Message{Type: "error-submitting-answer", Content: json.RawMessage(`{"error": "Game does not exist"}`)})
-				continue
-			}
-
-			player, exists := room.Players[answerSubmission.PlayerId]
-
-			if !exists {
-				err = conn.WriteJSON(Message{Type: "error-submitting-answer", Content: json.RawMessage(`{"error": "Player with that Id does not exist"}`)})
-				continue
-			}
-
-			player.Data.Status = "submitted"
-			player.Data.Letters = answerSubmission.Answer + player.Data.Letters
-			player.Data.WordHistory = append(player.Data.WordHistory, answerSubmission.Answer)
-
-			roundComplete := checkAllPlayersStatus(room.Game, "submitted")
-
-			if roundComplete {
-				room.Game.Status = "round-completed"
-				notifyPlayers(room.RoomCode, "round-completed", room.Game)
-				endRound(room)
-			} else {
-				err = conn.WriteJSON(Message{Type: "answer-accepted"})
-				notifyPlayers(room.RoomCode, "game-updated", room.Game)
-			}
 		case "ready-up":
 			var readyUp ReadyUp
-
 			err := json.Unmarshal(msg.Content, &readyUp)
 			if err != nil {
 				return
 			}
 
-			room, exists := rooms[readyUp.RoomCode]
+			message = handleReadyUp(conn, readyUp)
+		}
 
-			if !exists {
-				err = conn.WriteJSON(Message{Type: "error-submitting-answer", Content: json.RawMessage(`{"error": "Game does not exist"}`)})
-				continue
-			}
+		if message == nil {
+			continue
+		}
+		err = conn.WriteJSON(message)
 
-			player, exists := room.Players[readyUp.PlayerId]
-
-			if !exists {
-				err = conn.WriteJSON(Message{Type: "error-submitting-answer", Content: json.RawMessage(`{"error": "Player with that Id does not exist"}`)})
-				continue
-			}
-
-			player.Data.Status = "ready"
-
-			allReady := checkAllPlayersStatus(room.Game, "ready")
-
-			if allReady {
-				room.Game.Status = "round-ongoing"
-				startNewRound(room)
-				notifyPlayers(room.RoomCode, "round-started", room.Game)
-			}
-			//notify current player that ready up worked?
+		if err != nil {
+			fmt.Println("Error while writing message:", err)
 		}
 	}
 }
 
-func checkAllPlayersStatus(game *Game, status string) bool {
-	for _, player := range game.PlayerData {
-		if player.Status != status {
-			return false
-		}
+func handleReadyUp(conn *websocket.Conn, readyUp ReadyUp) *Message {
+	room, exists := rooms[readyUp.RoomCode]
+
+	if !exists {
+		return &Message{Type: "error-submitting-answer", Content: json.RawMessage(`{"error": "Game does not exist"}`)}
 	}
-	return true
+
+	player, exists := room.Players[readyUp.PlayerId]
+
+	if !exists {
+		return &Message{Type: "error-submitting-answer", Content: json.RawMessage(`{"error": "Player with that Id does not exist"}`)}
+	}
+
+	player.Data.Status = "ready"
+
+	allReady := checkAllPlayersStatus(room.Game, "ready")
+
+	if allReady {
+		room.Game.Status = "round-ongoing"
+		startNewRound(room)
+		notifyPlayers(room.RoomCode, "round-started", room.Game)
+	}
+	//notify current player that ready up worked?
+	return nil
+}
+
+func handleAnswerSubmit(conn *websocket.Conn, answerSubmission AnswerSubmission) *Message {
+	//check to see if answer is valid
+
+	room, exists := rooms[answerSubmission.RoomCode]
+
+	if !exists {
+		return &Message{Type: "error-submitting-answer", Content: json.RawMessage(`{"error": "Game does not exist"}`)}
+	}
+
+	player, exists := room.Players[answerSubmission.PlayerId]
+
+	if !exists {
+		return &Message{Type: "error-submitting-answer", Content: json.RawMessage(`{"error": "Player with that Id does not exist"}`)}
+	}
+
+	player.Data.Status = "submitted"
+	player.Data.Letters = answerSubmission.Answer + player.Data.Letters
+	player.Data.WordHistory = append(player.Data.WordHistory, answerSubmission.Answer)
+
+	roundComplete := checkAllPlayersStatus(room.Game, "submitted")
+
+	if roundComplete {
+		room.Game.Status = "round-completed"
+		notifyPlayers(room.RoomCode, "round-completed", room.Game)
+		endRound(room)
+		return nil
+	} else {
+		notifyPlayers(room.RoomCode, "game-updated", room.Game)
+		return &Message{Type: "answer-accepted"}
+	}
+}
+
+func joinGame(conn *websocket.Conn, joinGameRequest JoinGameRequest) *Message {
+	roomCode := joinGameRequest.RoomCode
+	username := joinGameRequest.Username
+
+	player, id := createPlayer(username)
+	player.Connection = conn
+
+	room, exists := rooms[roomCode]
+	if exists {
+		room.Players[id] = player
+		room.Clients[conn] = true
+
+		playerList := createPlayerList(room.Players)
+
+		// Notify all clients in the room
+		notifyPlayers(roomCode, "player-joined", PlayerListNotification{Players: playerList})
+
+		response := JoinGameResponse{RoomCode: roomCode, Players: playerList, PlayerId: id}
+		content, _ := json.Marshal(response)
+		return &Message{Type: "joined-game", Content: content}
+	} else {
+		return &Message{Type: "error-joining-game", Content: json.RawMessage(`{"error": "Room does not exist"}`)}
+	}
+}
+
+func createRoom(conn *websocket.Conn) *Message {
+	roomCode := generateRoomCode()
+	rooms[roomCode] = &Room{RoomCode: roomCode, Players: make(map[uuid.UUID]Player), Clients: make(map[*websocket.Conn]bool), Host: conn}
+
+	response := CreateGameResponse{RoomCode: roomCode}
+	content, err := json.Marshal(response)
+
+	if err != nil {
+		return &Message{Type: "error-creating-game", Content: json.RawMessage(`{"error": "Internal Server Error"}`)}
+	} else {
+		return &Message{Type: "game-created", Content: content}
+	}
 }
 
 func main() {
@@ -211,17 +198,4 @@ func main() {
 	if err != nil {
 		fmt.Println("Error starting server:", err)
 	}
-}
-
-func generateRoomCode() string {
-	const charset = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789"
-	var sb strings.Builder
-	sb.Grow(5)
-
-	for i := 0; i < 5; i++ {
-		randomIndex := rand.Intn(len(charset))
-		sb.WriteByte(charset[randomIndex])
-	}
-
-	return sb.String()
 }
