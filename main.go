@@ -1,11 +1,16 @@
 package main
 
+//TODO: Add Category to the game object to be saved in memory and retrieve it at the start of each round
+//TODO: Make game object to send to user that differs from server object as to not reveal too much
+
 import (
 	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"net/http"
+	"strings"
+	"unicode"
 )
 
 var upgrader = websocket.Upgrader{
@@ -15,6 +20,7 @@ var upgrader = websocket.Upgrader{
 }
 
 var rooms map[string]*Room
+var categories []Category
 
 func handleConnection(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -31,63 +37,62 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Println("Client connected")
 
-	var message *Message
-
 	for {
-		var msg Message
+		var response *Message
+		var clientRequest Message
 
-		err := conn.ReadJSON(&msg)
+		err := conn.ReadJSON(&clientRequest)
 
 		if err != nil {
-			fmt.Println("Error while reading message:", err)
+			fmt.Println("Error while reading response:", err)
 			break
 		}
 
-		switch msg.Type {
+		switch clientRequest.Type {
 		case "create-game":
-			message = createRoom(conn)
+			response = createRoom(conn)
 		case "join-game":
 			var joinGameRequest JoinGameRequest
-			err := json.Unmarshal(msg.Content, &joinGameRequest)
+			err := json.Unmarshal(clientRequest.Content, &joinGameRequest)
 			if err != nil {
 				return
 			}
 
-			message = joinGame(conn, joinGameRequest)
+			response = joinGame(conn, joinGameRequest)
 		case "start-game":
 			var startGameRequest StartGameRequest
-			err := json.Unmarshal(msg.Content, &startGameRequest)
+			err := json.Unmarshal(clientRequest.Content, &startGameRequest)
 			if err != nil {
 				return
 			}
 
-			message = startGame(conn, startGameRequest)
+			response = startGame(conn, startGameRequest)
 		case "submit-answer":
 			var answerSubmission AnswerSubmission
-			err := json.Unmarshal(msg.Content, &answerSubmission)
+			err := json.Unmarshal(clientRequest.Content, &answerSubmission)
 			if err != nil {
 				return
 			}
 
-			message = handleAnswerSubmit(conn, answerSubmission)
+			response = handleAnswerSubmit(conn, answerSubmission)
 
 		case "ready-up":
 			var readyUp ReadyUp
-			err := json.Unmarshal(msg.Content, &readyUp)
+			err := json.Unmarshal(clientRequest.Content, &readyUp)
 			if err != nil {
 				return
 			}
 
-			message = handleReadyUp(conn, readyUp)
+			response = handleReadyUp(conn, readyUp)
 		}
 
-		if message == nil {
+		if response == nil {
 			continue
 		}
-		err = conn.WriteJSON(message)
+		err = conn.WriteJSON(response)
 
 		if err != nil {
-			fmt.Println("Error while writing message:", err)
+			fmt.Println("Error while writing response:", err)
 		}
 	}
 }
@@ -112,7 +117,7 @@ func handleReadyUp(conn *websocket.Conn, readyUp ReadyUp) *Message {
 	if allReady {
 		room.Game.Status = "round-ongoing"
 		startNewRound(room)
-		notifyPlayers(room.RoomCode, "round-started", room.Game)
+		notifyPlayers(room.RoomCode, "round-started", createGameRepresentation(*room.Game))
 	}
 	//notify current player that ready up worked?
 	return nil
@@ -132,22 +137,47 @@ func handleAnswerSubmit(conn *websocket.Conn, answerSubmission AnswerSubmission)
 	if !exists {
 		return &Message{Type: "error-submitting-answer", Content: json.RawMessage(`{"error": "Player with that Id does not exist"}`)}
 	}
+	if !checkValidAnswer(room.Game.Category, answerSubmission.Answer) {
+		return &Message{Type: "answer-denied"}
+	}
 
 	player.Data.Status = "submitted"
-	player.Data.Letters = answerSubmission.Answer + player.Data.Letters
-	player.Data.WordHistory = append(player.Data.WordHistory, answerSubmission.Answer)
+	player.Data.Letters = sanitizeString(answerSubmission.Answer) + player.Data.Letters
+	player.Data.WordHistory = append(player.Data.WordHistory, sanitizeString(answerSubmission.Answer))
 
 	roundComplete := checkAllPlayersStatus(room.Game, "submitted")
 
 	if roundComplete {
 		room.Game.Status = "round-completed"
-		notifyPlayers(room.RoomCode, "round-completed", room.Game)
+		notifyPlayers(room.RoomCode, "round-completed", createGameRepresentation(*room.Game))
 		endRound(room)
 		return nil
 	} else {
-		notifyPlayers(room.RoomCode, "game-updated", room.Game)
+		notifyPlayers(room.RoomCode, "game-updated", createGameRepresentation(*room.Game))
 		return &Message{Type: "answer-accepted"}
 	}
+}
+
+func checkValidAnswer(category Category, answer string) bool {
+	for _, validAnswer := range category.Answers {
+		if sanitizeString(validAnswer) == sanitizeString(answer) {
+			return true
+		}
+	}
+	return false
+}
+
+func sanitizeString(input string) string {
+	var result strings.Builder
+
+	for _, char := range input {
+		if unicode.IsLetter(char) {
+			// Convert to lowercase and add to result
+			result.WriteRune(unicode.ToLower(char))
+		}
+	}
+
+	return result.String()
 }
 
 func joinGame(conn *websocket.Conn, joinGameRequest JoinGameRequest) *Message {
@@ -191,6 +221,7 @@ func createRoom(conn *websocket.Conn) *Message {
 
 func main() {
 	rooms = make(map[string]*Room)
+	initiateCategories(&categories)
 	http.HandleFunc("/ws", handleConnection)
 	serverAddr := "localhost:8080"
 	fmt.Printf("Server started at ws://%s\n", serverAddr)

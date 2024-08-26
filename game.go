@@ -28,7 +28,7 @@ type PlayerGameData struct {
 type Game struct {
 	Round         int               `json:"round"`
 	PlayerData    []*PlayerGameData `json:"playerData"`
-	CurrentPrompt string            `json:"currentPrompt"`
+	Category      Category          `json:"generateCategory"`
 	PromptHistory []string          `json:"promptHistory"`
 	Status        string            `json:"status"`
 }
@@ -50,7 +50,7 @@ func startGame(conn *websocket.Conn, startGameRequest StartGameRequest) *Message
 		return &Message{Type: "error-starting-game", Content: json.RawMessage(`{"error": "Player is not host"}`)}
 	}
 
-	room.Game = &Game{Round: 0, PlayerData: make([]*PlayerGameData, len(room.Players)), CurrentPrompt: generatePrompt(), PromptHistory: make([]string, 0), Status: "prompting"}
+	room.Game = &Game{Round: 0, PlayerData: make([]*PlayerGameData, len(room.Players)), Category: generateCategory(), PromptHistory: make([]string, 0), Status: "prompting"}
 
 	index := 0
 	for _, player := range room.Players {
@@ -62,13 +62,17 @@ func startGame(conn *websocket.Conn, startGameRequest StartGameRequest) *Message
 
 	updatePlayerStatus(room, "answering")
 
-	notifyPlayers(startGameRequest.RoomCode, "game-started", room.Game)
+	notifyPlayers(startGameRequest.RoomCode, "game-started", createGameRepresentation(*room.Game))
 
 	return nil
 }
 
-func generatePrompt() string {
-	return "Bugs"
+func generateCategory() Category {
+	// Get a random index
+	randomIndex := rand.Intn(len(categories))
+
+	// Return the random element
+	return categories[randomIndex]
 }
 
 func countdown(room *Room, duration int) {
@@ -100,8 +104,8 @@ func createPlayer(username string) (Player, uuid.UUID) {
 
 func startNewRound(room *Room) {
 	room.Game.Round++
-	room.Game.PromptHistory = append(room.Game.PromptHistory, room.Game.CurrentPrompt)
-	room.Game.CurrentPrompt = generatePrompt()
+	room.Game.PromptHistory = append(room.Game.PromptHistory, room.Game.Category.Category)
+	room.Game.Category = generateCategory()
 	updatePlayerStatus(room, "answering")
 	go countdown(room, 30)
 }
@@ -122,7 +126,7 @@ func removeFromBack(s string, amount int) string {
 func endRound(room *Room) {
 	//come up with a dynamic way to decrease player letters based on the range of letter lengths and rounds
 	decreasePlayerLetters(room.Game, 3)
-	notifyPlayers(room.RoomCode, "post-round-adjustment", room.Game)
+	notifyPlayers(room.RoomCode, "post-round-adjustment", createGameRepresentation(*room.Game))
 }
 
 func updatePlayerStatus(room *Room, status string) {

@@ -50,6 +50,14 @@ type ReadyUp struct {
 	PlayerId uuid.UUID `json:"playerId"`
 }
 
+type GameRepresentation struct {
+	Round         int               `json:"round"`
+	PlayerData    []*PlayerGameData `json:"playerData"`
+	CurrentPrompt string            `json:"currentPrompt"`
+	PromptHistory []string          `json:"promptHistory"`
+	Status        string            `json:"status"`
+}
+
 // Functions
 func notifyPlayers(gameCode string, notificationType string, notificationContent interface{}) {
 	game, exists := rooms[gameCode]
@@ -90,4 +98,14 @@ func createPlayerList(playersMap map[uuid.UUID]Player) []string {
 	}
 
 	return players
+}
+
+func createGameRepresentation(game Game) GameRepresentation {
+	return GameRepresentation{
+		Round:         game.Round,
+		PlayerData:    game.PlayerData,
+		CurrentPrompt: game.Category.Category,
+		PromptHistory: game.PromptHistory,
+		Status:        game.Status,
+	}
 }
