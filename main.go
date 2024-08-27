@@ -1,7 +1,7 @@
 package main
 
-//TODO: Add Category to the game object to be saved in memory and retrieve it at the start of each round
-//TODO: Make game object to send to user that differs from server object as to not reveal too much
+//TODO: Send update to players when one readies up so it can display
+//TODO: Send ???s instead of word so that players don't get spoiled
 
 import (
 	"encoding/json"
@@ -149,7 +149,6 @@ func handleAnswerSubmit(conn *websocket.Conn, answerSubmission AnswerSubmission)
 
 	if roundComplete {
 		room.Game.Status = "round-completed"
-		notifyPlayers(room.RoomCode, "round-completed", createGameRepresentation(*room.Game))
 		endRound(room)
 		return nil
 	} else {

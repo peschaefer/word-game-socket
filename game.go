@@ -125,6 +125,7 @@ func removeFromBack(s string, amount int) string {
 
 func endRound(room *Room) {
 	//come up with a dynamic way to decrease player letters based on the range of letter lengths and rounds
+	notifyPlayers(room.RoomCode, "round-completed", createGameRepresentation(*room.Game))
 	decreasePlayerLetters(room.Game, 3)
 	notifyPlayers(room.RoomCode, "post-round-adjustment", createGameRepresentation(*room.Game))
 }
